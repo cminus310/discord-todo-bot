@@ -1,133 +1,165 @@
 // index.js
-const { Client, GatewayIntentBits } = require('discord.js');
-const Database = require('better-sqlite3');
-const path = require('path');
+require('dotenv').config();
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const db = require('./database');
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+});
 
-// ================= 配置 =================
-const TOKEN = process.env.DISCORD_TOKEN;
-const TODO_CHANNEL_ID = process.env.TODO_CHANNEL_ID; // 设置你todo频道ID
-if (!TOKEN || !TODO_CHANNEL_ID) {
-  console.error('请先在环境变量里配置 DISCORD_TOKEN 和 TODO_CHANNEL_ID');
-  process.exit(1);
+const COMMANDS = {
+  HELP: ['help', '帮助', '幫助'],
+  ADD: ['添加', 'add'],
+  LIST: ['列表', 'list'],
+  COMPLETE: ['完成', 'complete'],
+  DELETE: ['删除', 'delete'],
+  CANCEL: ['取消', 'cancel']
+};
+
+// 存储任务的内存数组（可以换成数据库）
+
+client.once('ready', () => {
+  console.log(`${client.user.tag} is online`);
+});
+
+
+
+client.on('messageCreate', async (message) => {
+  if (message.author.bot) return;
+
+  if (message.author.bot) return;
+
+  // 打印 debug 信息
+  console.log('--- Debug Message ---');
+  console.log('收到消息:', message.content);
+  console.log('频道ID:', message.channel.id);
+  console.log('用户ID:', message.author.id);
+  console.log('用户名:', message.author.tag);
+  console.log('-------------------');
+
+
+  const content = message.content.trim().toLowerCase();
+  const command = content.split('')[0];
+  // ===== HELP 指令 =====
+  if (COMMANDS.HELP.includes(command)) {
+    const helpEmbed = new EmbedBuilder()
+      .setTitle('📝 Todo Bot 帮助')
+      .setColor(0x00ff00)
+      .setDescription(`
+**添加任务**: 发送 \`添加\`，Bot 会引导输入任务信息  
+**查看列表**: 发送 \`列表\`  
+**完成任务**: 发送 \`完成 序号\`  
+**删除任务**: 发送 \`删除 序号\`  
+**取消任务创建**: 在创建任务过程中发送 \`取消\`
+    `);
+    return message.channel.send({ embeds: [helpEmbed] });
+  }
+
+  // ===== 添加任务 =====
+  let creating = false;
+  if (COMMANDS.ADD.includes(command)) {
+    creating = true
+    return collectTask(message);
+  }
+
+  // ===== 查看任务列表 =====
+  if (COMMAND.LIST.includes(command)) {
+    const listEmbed = new EmbedBuilder()
+    .setTitle('📝 当前任务列表')
+    .setColor(0x0099ff);
+    db.all(`SELECT * FROM tasks WHERE user = ?`, [message.author.id], (err, rows) => {
+      if (err) return console.error(err);
+    
+      if (rows.length === 0) return message.channel.send('📭 当前任务列表为空');
+    
+      rows.forEach((t, i) => {
+        listEmbed.addFields({
+          name: `#${t.id} ${t.name}`,
+          value: `截止: ${t.deadline} | 优先级: ${t.priority} | 状态: ${t.completed ? '✅ 已完成' : '❌ 未完成'}`,
+        });
+      });
+      message.channel.send({ embeds: [listEmbed] })
+    });
+
+    return ;
+  }
+
+  // ===== 完成任务 =====
+
+  if (COMMANDS.COMPLETE.includes(command) && creating === false) {
+    const taskId = parseInt(content.split(' ')[1]);
+    if (isNaN(taskId)){
+      return message.channel.send(`❌ 完成格式：完成 <id>`)
+    }
+    db.all(`SELECT * FROM tasks WHERE user = ?`, [message.author.id], (err, rows) => {
+      if (err) return console.error(err);
+      const userIndex = parseInt(content.split(' ')[1]) - 1;
+      if (isNaN(userIndex) || !rows[userIndex]) return message.channel.send('❌ 无效的任务编号');
+    
+      db.run(`UPDATE tasks SET completed = 1 WHERE id = ?`, [taskId], function(err) {
+        if (err) return message.channel.send('❌ 标记任务失败');
+      });
+    });
+    return message.channel.send(`✅ 已标记任务 #${taskId} 为完成`);
+  };
+
+  // ===== 删除任务 =====
+  if (COMMANDS.DELETE.includes(command) && creating === false) {
+    const index = parseInt(content.split(' ')[1]);
+    db.run(`DELETE FROM tasks WHERE id = ? AND user = ?`, [index, message.author.id],function(err){
+      if(err) return message.channel.send('❌ 删除任务失败');
+    });
+    return message.channel.send(`🗑️ 已删除任务 #${index}`);
+  }
+});
+
+// ===== 交互式收集任务信息 =====
+async function collectTask(message) {
+  const filter = (m) => m.author.id === message.author.id;
+  const channel = message.channel;
+
+  try {
+    // 1️⃣ 任务名称
+    await channel.send('📝 请告诉我任务名称（发送 `取消` 可退出）：');
+    const nameMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+    if (nameMsg.first().content.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
+    const taskName = nameMsg.first().content;
+
+    // 2️⃣ 截止日期
+    await channel.send('📅 请告诉我截止日期（发送 `取消` 可退出）：');
+    const deadlineMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+    if (deadlineMsg.first().content.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
+    const deadline = deadlineMsg.first().content;
+
+    // 3️⃣ 优先级
+    await channel.send('⚡ 请告诉我优先级（高、中、低）（发送 `取消` 可退出）：');
+    const priorityMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+    if (priorityMsg.first().content.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
+    const priority = priorityMsg.first().content;
+
+    // 保存任务
+    db.run(
+      `INSERT INTO tasks (user, name, deadline, priority, completed) VALUES (?, ?, ?, ?, ?)`,
+      [message.author.id, taskName, deadline, priority, 0]
+    );
+
+    // 成功提示
+    const embed = new EmbedBuilder()
+      .setTitle('✅ 新任务已添加')
+      .setColor(0x00ff00)
+      .addFields(
+        { name: '任务名称', value: taskName },
+        { name: '截止日期', value: deadline },
+        { name: '优先级', value: priority }
+      );
+
+    return channel.send({ embeds: [embed] });
+  } catch (err) {
+    return channel.send('⏰ 超时未回复，任务创建已取消');
+  }
 }
 
-// ================= 数据库 =================
-const dbPath = path.join(__dirname, 'todos.db');
-const db = new Database(dbPath);
-
-db.prepare(`
-CREATE TABLE IF NOT EXISTS todos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id TEXT,
-  content TEXT,
-  priority TEXT DEFAULT '中',
-  deadline TEXT,
-  done INTEGER DEFAULT 0
-)
-`).run();
-
-// ================= Bot 初始化 =================
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
-
-// 用户状态，用于交互式添加
-const userStates = {};
-
-// ================= 事件 =================
-client.on('ready', () => {
-  console.log(`${client.user.tag} 已上线`);
-});
-
-client.on('messageCreate', async message => {
-  if (message.author.bot) return; // 忽略Bot自己
-  if (message.channel.id !== TODO_CHANNEL_ID) return; // 只监听指定频道
-
-  const userId = message.author.id;
-
-  // -------- 交互式添加逻辑 --------
-  if (userStates[userId]) {
-    const state = userStates[userId];
-
-    if (state.step === 'waiting_name') {
-      state.tempTodo.content = message.content;
-      state.step = 'waiting_deadline';
-      return message.reply('⏰ 请告诉我截止日期 (YYYY-MM-DD)，或者输入“无”');
-    }
-
-    if (state.step === 'waiting_deadline') {
-      state.tempTodo.deadline = message.content.toLowerCase() === '无' ? null : message.content;
-      state.step = 'waiting_priority';
-      return message.reply('⭐ 请设置优先级（高 / 中 / 低），默认中');
-    }
-
-    if (state.step === 'waiting_priority') {
-      const priority = ['高','中','低'].includes(message.content) ? message.content : '中';
-      state.tempTodo.priority = priority;
-
-      // 保存到数据库
-      db.prepare('INSERT INTO todos (user_id, content, priority, deadline) VALUES (?, ?, ?, ?)')
-        .run(userId, state.tempTodo.content, state.tempTodo.priority, state.tempTodo.deadline);
-
-      message.reply(`✅ 已添加 Todo: ${state.tempTodo.content} [优先: ${state.tempTodo.priority}]${state.tempTodo.deadline ? ` [截止: ${state.tempTodo.deadline}]` : ''}`);
-
-      delete userStates[userId]; // 清除状态
-      return;
-    }
-  }
-
-  // -------- 用户触发交互 --------
-  if (message.content === '添加') {
-    userStates[userId] = { step: 'waiting_name', tempTodo: {} };
-    return message.reply('📝 请告诉我任务名称：');
-  }
-
-  // -------- 查看列表 --------
-  if (message.content === '列表') {
-    const rows = db.prepare(`
-      SELECT * FROM todos
-      WHERE user_id=?
-      ORDER BY done ASC,
-        CASE priority WHEN '高' THEN 1 WHEN '中' THEN 2 ELSE 3 END,
-        CASE WHEN deadline IS NULL THEN 999999 ELSE julianday(deadline) END
-    `).all(userId);
-
-    if (rows.length === 0) return message.reply('📭 你的 Todo 为空！');
-
-    // 使用 Embed 显示
-    const embed = {
-      color: 0x0099ff,
-      title: '📋 你的 Todo 列表',
-      description: '按完成状态 → 优先级 → 截止日期排序',
-      fields: rows.map(r => ({
-        name: `${r.done ? '✅' : '⬜'} ${r.content}`,
-        value: `ID: ${r.id} | 优先级: ${r.priority}${r.deadline ? ` | 截止: ${r.deadline}` : ''}`,
-        inline: false
-      })),
-      timestamp: new Date(),
-    };
-
-    return message.reply({ embeds: [embed] });
-  }
-
-  // -------- 标记完成 --------
-  if (message.content.startsWith('完成')) {
-    const id = parseInt(message.content.split(' ')[1]);
-    if (!id) return message.reply('❌ 格式: 完成 <ID>');
-
-    const info = db.prepare('UPDATE todos SET done=1 WHERE id=? AND user_id=?').run(id, userId);
-    if (info.changes === 0) return message.reply(`❌ 未找到 ID 为 ${id} 的待办`);
-    return message.reply(`✅ 已标记 ID ${id} 为完成`);
-  }
-
-  // -------- 删除 --------
-  if (message.content.startsWith('删除')) {
-    const id = parseInt(message.content.split(' ')[1]);
-    if (!id) return message.reply('❌ 格式: 删除 <ID>');
-
-    const info = db.prepare('DELETE FROM todos WHERE id=? AND user_id=?').run(id, userId);
-    if (info.changes === 0) return message.reply(`❌ 未找到 ID 为 ${id} 的待办`);
-    return message.reply(`🗑 已删除 ID ${id}`);
-  }
-});
-
-// ================= 登录 =================
-client.login(TOKEN);
+client.login(process.env.DISCORD_TOKEN);
