@@ -43,6 +43,7 @@ client.on('messageCreate', async (message) => {
 
   const content = message.content.trim().toLowerCase();
   const command = content.split('')[0];
+  console.log(command);
   // ===== HELP 指令 =====
   if (COMMANDS.HELP.includes(command)) {
     const helpEmbed = new EmbedBuilder()
