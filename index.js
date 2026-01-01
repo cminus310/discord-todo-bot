@@ -66,7 +66,7 @@ client.on('messageCreate', async (message) => {
   }
 
   // ===== 查看任务列表 =====
-  if (COMMAND.LIST.includes(command)) {
+  if (COMMANDS.LIST.includes(command)) {
     const listEmbed = new EmbedBuilder()
     .setTitle('📝 当前任务列表')
     .setColor(0x0099ff);
