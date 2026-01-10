@@ -95,7 +95,8 @@ function normalizeChinese(text) {
   
   function formatTime(ts) {
     if (ts === null) return '—';
-    return new Date(ts).toLocaleString('zh-TW', {
+    const tsNumber = Number(ts)
+    return new Date(tsNumber).toLocaleString('zh-TW', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
