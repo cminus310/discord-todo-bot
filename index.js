@@ -80,7 +80,7 @@ client.on('messageCreate', async (message) => {
           name: `任务 #${t.row_number} ${t.name}`,
           value:
           `📅 创建时间：${formatTime(t.created_at)}\n` +
-          `⏰ 截止时间：${t.deadline}\n` +
+          `⏰ 截止时间：${formatTime(t.deadline)}\n` +
           `⚡ 优先级：${t.priority}\n` +
           `状态：${
             t.completed
@@ -192,7 +192,7 @@ async function collectTask(message) {
     db.run(
       `INSERT INTO tasks (user, name, deadline, priority, completed, created_at, completed_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [message.author.id, taskName, deadline, priority, 0, now, null]
+      [message.author.id, taskName, deadlineTs, priority, 0, now, null]
     );
 
     // 成功提示
@@ -201,7 +201,7 @@ async function collectTask(message) {
       .setColor(0x00ff00)
       .addFields(
         { name: '任务名称', value: taskName },
-        { name: '截止日期', value: deadline },
+        { name: '截止日期', value: formatTime(deadlineTs) },
         { name: '优先级', value: priority }
       );
 
