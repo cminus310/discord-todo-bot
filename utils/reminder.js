@@ -1,3 +1,4 @@
+const {formatTime} = require('./time')
 function startReminder(client, db) {
     const CHECK_INTERVAL = 60 * 1000; // 每分钟检查一次
     const REMIND_BEFORE = 30 * 60 * 1000; // 提前 30 分钟
@@ -22,7 +23,7 @@ function startReminder(client, db) {
             await user.send(
               `🔔 **任务即将到期**\n` +
               `📌 ${task.name}\n` +
-              `⏰ 截止时间：${new Date(task.deadline).toLocaleString('zh-TW')}`
+              `⏰ 截止时间：${formatTime(task.deadline)}`
             );
   
             db.run(
