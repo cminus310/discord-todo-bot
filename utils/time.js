@@ -48,9 +48,13 @@ function normalizeChinese(text) {
     }
   
     // ====== 今天 / 今晚 / 明天 + 时间 ======
+    // const cnTimeMatch = text.match(
+    //   /^(今天|今晚|明天)(早上|上午|中午|下午|晚上)?(\d{1,2})(?:[:点](\d{1,2}))?$/
+    // );
     const cnTimeMatch = text.match(
-      /^(今天|今晚|明天)(早上|上午|中午|下午|晚上)?(\d{1,2})(?:[:点](\d{1,2}))?$/
+      /^(今天|今晚|明天)(早上|上午|中午|下午|晚上)?(\d{1,2})(?:[:点](\d{1,2})?)?$/
     );
+      
   
     if (cnTimeMatch) {
       const [, dayWord, period, hourRaw, minuteRaw] = cnTimeMatch;
