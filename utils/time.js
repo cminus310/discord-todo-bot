@@ -13,6 +13,8 @@ function normalizeChinese(text) {
   }
   
   function parseHumanTime(input) {
+    const TAIPEI_OFFSET = 8 * 60 * 60 * 1000;
+
     if (!input) return null;
   
     let text = input.trim().toLowerCase();
@@ -37,12 +39,12 @@ function normalizeChinese(text) {
     if (text === '明天') {
       const d = new Date();
       d.setDate(d.getDate() + 1);
-      return endOfDay(d);
+      return endOfDay(d) - TAIPEI_OFFSET;
     }
     if (text === '后天') {
       const d = new Date();
       d.setDate(d.getDate() + 2);
-      return endOfDay(d);
+      return endOfDay(d) - TAIPEI_OFFSET;
     }
   
     // ====== 今天 / 今晚 / 明天 + 时间 ======
@@ -55,6 +57,7 @@ function normalizeChinese(text) {
       const date = new Date();
   
       if (dayWord === '明天') date.setDate(date.getDate() + 1);
+      if (dayWord === '今晚' && hour < 12) {hour += 12; };
   
       let hour = Number(hourRaw);
       let minute = minuteRaw ? Number(minuteRaw) : 0;
@@ -66,7 +69,7 @@ function normalizeChinese(text) {
   
       date.setHours(hour, minute, 0, 0);
       if (isNaN(date.getTime())) return null;
-      return date.getTime();
+      return date.getTime() - TAIPEI_OFFSET;
     }
   
     // ====== 标准日期 ======
@@ -87,7 +90,7 @@ function normalizeChinese(text) {
       );
   
       if (isNaN(date.getTime())) return null;
-      return date.getTime();
+      return date.getTime() - TAIPEI_OFFSET;
     }
   
     return undefined; // 明确表示：解析失败
@@ -102,6 +105,7 @@ function normalizeChinese(text) {
       day: '2-digit',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: 'Asia/Taipei'
     });
   }
   
