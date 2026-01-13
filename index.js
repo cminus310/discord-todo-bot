@@ -171,7 +171,6 @@ async function collectTask(message) {
     const taskName = nameMsg.first().content;
 
     // 2️⃣ 截止日期
-    await channel.send('📅 请告诉我截止日期（发送 `取消` 可退出）：');
     let deadline = null;
     while (true) {
       await channel.send('📅 请告诉我截止日期（发送 `取消` 可退出）：');
@@ -195,6 +194,7 @@ async function collectTask(message) {
         deadline = ts; // 有效时间
         break; // 退出循环
       } catch (err) {
+        console.log(err)
         return channel.send('⏰ 超时未回复，任务创建已取消');
       }
     }
