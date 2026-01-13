@@ -164,55 +164,87 @@ async function collectTask(message) {
   const channel = message.channel;
 
   try {
-    // 1️⃣ 任务名称
-    await channel.send('📝 请告诉我任务名称（发送 `取消` 可退出）：');
-    const nameMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
-    if (nameMsg.first().content.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
-    const taskName = nameMsg.first().content;
+    // ===== 1️⃣ 任务名称 =====
+    let taskName = '';
+    while (true) {
+      await channel.send('📝 请告诉我任务名称（发送 `取消` 可退出）：');
+      const collected = await channel.awaitMessages({ filter, max: 1, time: 60000 });
+      const nameInput = collected.first()?.content.trim();
+      if (!nameInput) continue;
 
-    // 2️⃣ 截止日期
-    let deadline = null;
+      if (nameInput.toLowerCase() === 'cancel' || nameInput === '取消') {
+        return channel.send('❌ 任务创建已取消');
+      }
+
+      taskName = nameInput;
+      break;
+    }
+
+    // ===== 2️⃣ 截止日期 =====
+    let deadlineTs = null;
     while (true) {
       await channel.send('📅 请告诉我截止日期（发送 `取消` 可退出）：');
       try {
-        const collected = await channel.awaitMessages({
-          filter,
-          max: 1,
-          time: 60000
-        });
-        const text = collected.first().content.trim();
-        if (text.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
-    
+        const collected = await channel.awaitMessages({ filter, max: 1, time: 60000 });
+        const text = collected.first()?.content.trim();
+        if (!text) continue;
+
+        if (text.toLowerCase() === 'cancel' || text === '取消') {
+          return channel.send('❌ 任务创建已取消');
+        }
+
         const ts = parseHumanTime(text);
         if (ts === undefined) {
           await channel.send(
             '❌ 时间格式无效，请重新输入。例如：今晚11点 / 明天下午3点 / 2026-01-15 18:30 / 无'
           );
-          continue; // 继续循环等待
+          continue;
         }
-    
-        deadline = ts; // 有效时间
-        break; // 退出循环
+
+        deadlineTs = ts; // 可以为 null（表示无）
+        break;
       } catch (err) {
-        console.log(err)
         return channel.send('⏰ 超时未回复，任务创建已取消');
       }
     }
 
-    // 3️⃣ 优先级
-    await channel.send('⚡ 请告诉我优先级（高、中、低）（发送 `取消` 可退出）：');
-    const priorityMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
-    if (priorityMsg.first().content.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
-    const priority = priorityMsg.first().content;
-    const now = Date.now();
-    // 保存任务
+    // ===== 3️⃣ 优先级 =====
+    let priority = '';
+    while (true) {
+      await channel.send('⚡ 请告诉我优先级（高、中、低）（发送 `取消` 可退出）：');
+      try {
+        const collected = await channel.awaitMessages({ filter, max: 1, time: 60000 });
+        const text = collected.first()?.content.trim();
+        if (!text) continue;
+
+        if (text.toLowerCase() === 'cancel' || text === '取消') {
+          return channel.send('❌ 任务创建已取消');
+        }
+
+        if (!['高', '中', '低'].includes(text)) {
+          await channel.send('❌ 优先级无效，请输入 高 / 中 / 低');
+          continue;
+        }
+
+        priority = text;
+        break;
+      } catch (err) {
+        return channel.send('⏰ 超时未回复，任务创建已取消');
+      }
+    }
+
+    // ===== 保存任务 =====
+    const now = Date.now(); // 创建时间
     db.run(
       `INSERT INTO tasks (user, name, deadline, priority, completed, created_at, completed_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [message.author.id, taskName, deadlineTs, priority, 0, now, null]
+      [message.author.id, taskName, deadlineTs, priority, 0, now, null],
+      function (err) {
+        if (err) return channel.send('❌ 任务保存失败');
+      }
     );
 
-    // 成功提示
+    // ===== 成功提示 =====
     const embed = new EmbedBuilder()
       .setTitle('✅ 新任务已添加')
       .setColor(0x00ff00)
