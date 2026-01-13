@@ -172,14 +172,20 @@ async function collectTask(message) {
 
     // 2️⃣ 截止日期
     await channel.send('📅 请告诉我截止日期（发送 `取消` 可退出）：');
-    const deadlineMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
-    if (deadlineMsg.first().content.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
-    const deadline = deadlineMsg.first().content;
-    const deadlineTs = parseHumanTime(deadline);
-    if (deadlineTs === undefined) {
-      return channel.send(
-        '❌ 時間格式無法識別，例如：今晚11點 / 明天下午3點 / 2026-01-15 18:30 / 無'
-      );
+    let deadline = null;
+    while (true) {
+      const deadlineMsg = await channel.awaitMessages({ filter, max: 1, time: 60000, errors: ['time'] });
+      const text = deadlineMsg.first().content;
+      if (text.toLowerCase() === '取消') return channel.send('❌ 任务创建已取消');
+      const ts = parseHumanTime(text);
+      if (ts === undefined) {
+        await channel.send(
+          '❌ 时间格式无效，请重新输入。例如：今晚11点 / 明天下午3点 / 2026-01-15 18:30 / 无'
+        );
+        continue;
+      }
+      deadline = ts;
+      break;
     }
 
     // 3️⃣ 优先级
