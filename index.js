@@ -184,6 +184,7 @@ async function collectTask(message) {
     let deadlineTs = null;
     while (true) {
       await channel.send('📅 请告诉我截止日期（发送 `取消` 可退出）：');
+
       try {
         const collected = await channel.awaitMessages({ filter, max: 1, time: 60000 });
         const text = collected.first()?.content.trim();
@@ -193,6 +194,7 @@ async function collectTask(message) {
           return channel.send('❌ 任务创建已取消');
         }
 
+        // parseHumanTime 返回 null（无时间）或者 UTC 时间戳
         const ts = parseHumanTime(text);
         if (ts === undefined) {
           await channel.send(
@@ -201,12 +203,15 @@ async function collectTask(message) {
           continue;
         }
 
-        deadlineTs = ts; // 可以为 null（表示无）
+        deadlineTs = ts; // 有效时间，可能是 null
         break;
+
       } catch (err) {
+        console.error(err);
         return channel.send('⏰ 超时未回复，任务创建已取消');
       }
     }
+
 
     // ===== 3️⃣ 优先级 =====
     let priority = '';

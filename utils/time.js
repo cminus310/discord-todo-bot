@@ -59,12 +59,12 @@ function normalizeChinese(text) {
     if (cnTimeMatch) {
       const [, dayWord, period, hourRaw, minuteRaw] = cnTimeMatch;
       const date = new Date();
+
+      let hour = Number(hourRaw);
+      let minute = minuteRaw ? Number(minuteRaw) : 0;
   
       if (dayWord === '明天') date.setDate(date.getDate() + 1);
       if (dayWord === '今晚' && hour < 12) {hour += 12; };
-  
-      let hour = Number(hourRaw);
-      let minute = minuteRaw ? Number(minuteRaw) : 0;
   
       if (period) {
         if (['下午', '晚上'].includes(period) && hour < 12) hour += 12;
